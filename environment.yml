@@ -1,0 +1,17 @@
+name: object_detection_2d
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - anaconda
+dependencies:
+  - pip
+  - numpy
+  - matplotlib
+  - scikit-learn
+  - pytorch
+  - torchvision
+  - ultralytics
+  - pytorch-cuda
+  - opencv
+  - jupyter
