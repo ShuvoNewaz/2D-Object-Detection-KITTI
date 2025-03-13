@@ -1,8 +1,0 @@
-dataset
-unit_tests
-saved_models
-__pycache__/
-readme.ipynb
-wget-log
-*.pt
-*.pth

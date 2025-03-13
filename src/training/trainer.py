@@ -69,7 +69,8 @@ class Trainer:
         """Train for num_epochs, and validate after every epoch."""
         for epoch_idx in range(num_epochs):
 
-            train_classification_loss, train_regression_loss, train_loss, train_map = train(self.train_loader, self.model, self.optimizer, 0.05, device)
+            train_classification_loss, train_regression_loss, train_loss, train_map = \
+                train(self.train_loader, self.model, self.optimizer, 0.05, device)
 
             self.train_loss_history.append(train_loss)
             self.train_map_history.append(train_map)

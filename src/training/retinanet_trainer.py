@@ -2,6 +2,8 @@ import torch
 # from torchvision.ops import nms
 import numpy as np
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 # https://github.com/ponta256/fssd-resnext-voc-coco/blob/master/layers/box_utils.py#L245
 def nms(boxes, scores, nms_thresh=0.5, top_k=200):
     # boxes_copy = boxes.copy()
@@ -57,42 +59,43 @@ def batched_nms(
         return keep
 
 
-def retinanet_training(model, img_batch, classification, regression, anchors, annotations, split, device):
-    loss = None
-    if split == "training":
-        loss = model.loss_criterion(classification, regression, anchors, annotations)
+def retinanet_training(model, img_batch, classification, regression, anchors):
     transformed_anchors = model.regressBoxes(anchors, regression)
     transformed_anchors = model.clipBoxes(transformed_anchors, img_batch)
+    predicted_labels = torch.argmax(classification, dim=-1)
 
-    # image_indices = torch.Tensor([]).long().to(device)
     results = []
 
     for i in range(len(classification)):
         results.append({})
         finalScores = torch.Tensor([]).to(device)
-        finalAnchorBoxesIndexes = torch.Tensor([]).to(device)
+        finalPredictedLabels = torch.Tensor([]).to(device)
         finalAnchorBoxesCoordinates = torch.Tensor([]).to(device)
         for k in range(classification.shape[2]):
             scores = torch.squeeze(classification[i, :, k])
-            scores_over_thresh = (scores > 0.01)
+            scores_over_thresh = (scores > 0.05)
             if scores_over_thresh.sum() == 0:
                 # no boxes to NMS, just continue
                 continue
             scores = scores[scores_over_thresh]
             anchorBoxes = torch.squeeze(transformed_anchors[i])
             anchorBoxes = anchorBoxes[scores_over_thresh]
-            anchors_nms_idx = nms(anchorBoxes, scores, 0.2)
-
+            anchors_nms_idx = nms(anchorBoxes, scores, 0.5)
+           
             finalScores = torch.cat((finalScores, scores[anchors_nms_idx]))
-            finalAnchorBoxesIndexesValue = torch.tensor([k] * anchors_nms_idx.shape[0])
-            finalAnchorBoxesIndexesValue = finalAnchorBoxesIndexesValue.to(device)
-
-            finalAnchorBoxesIndexes = torch.cat((finalAnchorBoxesIndexes, finalAnchorBoxesIndexesValue))
+            finalPredictedLabels = torch.cat((finalPredictedLabels, predicted_labels[i, anchors_nms_idx]))
             finalAnchorBoxesCoordinates = torch.cat((finalAnchorBoxesCoordinates, anchorBoxes[anchors_nms_idx]))
 
+            # Clear GPU
+            anchorBoxes = anchorBoxes.detach().cpu()
+            scores = scores.detach().cpu()
+            scores_over_thresh = scores_over_thresh.detach().cpu()
+
         results[i]["scores"] = finalScores
-        results[i]["labels"] = finalAnchorBoxesIndexes
+        results[i]["labels"] = finalPredictedLabels
         results[i]["boxes"] = finalAnchorBoxesCoordinates
 
+    # Clear GPU
+    transformed_anchors = transformed_anchors.detach().cpu()
 
-    return loss, results
+    return results

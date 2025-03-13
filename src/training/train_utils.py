@@ -55,7 +55,7 @@ def train(train_loader, model, optimizer, dx, device) -> Tuple[float, float]:
     train_classification_loss_meter = AverageMeter("train loss")
     train_regression_loss_meter = AverageMeter("train loss")
     train_map_meter = AverageMeter("train accuracy")
-    thresholds = np.arange(0.1, 0.3, dx)
+    confidence_thresholds = np.arange(0.05, 0.95, dx)
 
     # loop over each minibatch
     for batchCount, (images, boxes_labels) in enumerate(train_loader):
@@ -65,8 +65,8 @@ def train(train_loader, model, optimizer, dx, device) -> Tuple[float, float]:
 
         n = images.shape[0]
         features, classification, regression, anchors = model(images)
-
-        batch_loss, results = retinanet_training(model, images, classification, regression, anchors, boxes_labels, "training", device)
+        batch_loss = model.loss_criterion(classification, regression, anchors, boxes_labels)
+        results = retinanet_training(model, images, classification, regression, anchors)
         classification_loss, regression_loss = batch_loss
         classification_loss, regression_loss = classification_loss[0], regression_loss[0]
         batch_loss = batch_loss[0] + batch_loss[1]
@@ -91,7 +91,8 @@ def train(train_loader, model, optimizer, dx, device) -> Tuple[float, float]:
         for i in range(n):
             for key in results[i]:
                 results[i][key] = results[i][key].detach().cpu()
-            finalScores, finalAnchorBoxesIndexes, finalAnchorBoxesCoordinates = results[i]["scores"], results[i]["labels"], results[i]["boxes"]
+            finalScores, finalPredictedLabels, finalAnchorBoxesCoordinates = \
+                results[i]["scores"], results[i]["labels"], results[i]["boxes"]
             finalAnchorBoxesCoordinates = torch.maximum(finalAnchorBoxesCoordinates, torch.tensor(0)).int()
             if finalAnchorBoxesCoordinates.ndim > 1: # If a prediction is made
                 # iou = compute_iou(boxes[i], finalAnchorBoxesCoordinates.numpy())
@@ -108,14 +109,20 @@ def train(train_loader, model, optimizer, dx, device) -> Tuple[float, float]:
                 # plt.show()
                 # break
                 iou = compute_iou(boxes[i], finalAnchorBoxesCoordinates)
-                # matched_boxes = match_boxes(iou)
-                precisions = np.zeros((num_classes, len(thresholds)))
-                recalls = np.zeros((num_classes, len(thresholds)))
+                precisions = np.zeros((num_classes, len(confidence_thresholds)))
+                recalls = np.zeros((num_classes, len(confidence_thresholds)))
                 for k in range(num_classes):
-                    precisions[k], recalls[k] = precision_recall_curve(true_labels[i], finalAnchorBoxesIndexes, iou, k, thresholds)
+                    precisions[k], recalls[k] = \
+                        precision_recall_curve(true_labels[i].astype(int),
+                                               finalPredictedLabels.numpy().astype(int),
+                                               finalScores,
+                                               iou, k,
+                                               confidence_thresholds,
+                                               iou_threshold=0.5)
                 mean_ap += compute_mean_average_precision(precisions, recalls, dx)
 
         mean_ap /= n
+        # break
 
         # Save loss
 

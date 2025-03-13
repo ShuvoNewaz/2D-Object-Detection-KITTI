@@ -5,11 +5,11 @@ import torch
 
 label_encoder = {
                     'Car': 0,
-                    'Van': 1,
-                    'Truck': 2,
-                    'Pedestrian': 3,
+                    'Pedestrian': 1,
+                    'Cyclist': 2,
+                    'Van': 3,
                     'Person_sitting': 4,
-                    'Cyclist': 5,
+                    'Truck': 5,
                     'Tram': 6,
                     'Misc': 7,
                     'DontCare': -1
@@ -37,8 +37,13 @@ def load_training_labels(labelPath):
     with open(labelPath, "r") as f:
         for line in f:
             lineContents = line.split("\n")[0].split(" ")
-            label_id.append(label_encoder[lineContents[0]])
-            boxes.append([lineContents[4], lineContents[5], lineContents[6], lineContents[7]])
+            classLabel = lineContents[0]
+            # if classLabel != "DontCare":
+            #     label_id.append(label_encoder[classLabel])
+            #     boxes.append([lineContents[4], lineContents[5], lineContents[6], lineContents[7]])
+            if classLabel in ["Car", "Pedestrian", "Cyclist"]:
+                label_id.append(label_encoder[classLabel])
+                boxes.append([lineContents[4], lineContents[5], lineContents[6], lineContents[7]])
     f.close()
     label_tensor = torch.tensor(label_id)
     box_tensor = torch.tensor(np.array(boxes).astype(float).astype(int))

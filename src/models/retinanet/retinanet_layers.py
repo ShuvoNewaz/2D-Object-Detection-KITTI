@@ -51,8 +51,8 @@ class PyramidFeatures(nn.Module):
 
         P6_x = self.P6(C5)
 
-        P7_x = self.P7_1(P6_x)
-        P7_x = self.P7_2(P7_x)
+        # P7_x = self.P7_1(P6_x)
+        P7_x = self.P7_2(P6_x)
 
         P8_x = self.P8_1(P7_x)
         P8_x = self.P8_2(P8_x)

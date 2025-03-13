@@ -1,9 +1,20 @@
 # 2D Object Detection
 
+## Project Environment
+
+This repository is tested on Ubuntu 22 with an Nvidia RTX 4090 GPU. To use this repository, please follow these steps:
+
+- Make sure [anaconda](https://www.anaconda.com/docs/getting-started/anaconda/install) is installed.
+- Clone this repository or download as a zip.
+- Make sure your system has Anaconda installed. Open a terminal to the root directory and enter the following command:
+`conda env create -f environment.yml`
+This will create a conda environment with the required libraries.
+- After the required libraries have been installed, type `conda activate object_detection_2d` in your terminal to activate the newly created environment.
+
 ## Dataset
 
 The dataset used for this project is the [KITTI 2D Object Detection Evaluation](https://www.cvlibs.net/datasets/kitti/eval_object.php?obj_benchmark=2d). The parts of this dataset used are:
-1. Left Color Images (12 GB)
+1. RGB Images (12 GB)
 2. Training Labels (5 MB)
 
 Enter `bash download_dataset.sh` in your terminal to automatically download and organize the dataset. The dataset will require about 12 GB of free space and, depending on the internet speed, may take a while to download.
@@ -20,7 +31,7 @@ The lables exist only for the training set. These `.txt` files contain the follo
 
 1. The object class.
 2. Truncation - A measure of how much the object out of image bounds. 0 $\rightarrow$ non-truncated. 1 $\rightarrow$ truncated.
-3. Occlusion. 0 $\rightarrow$ not occlude. 1 $\rightarrow$ partly occluded. 2 $\rightarrow$ mostly occluded. 3 $\rightarrow$ unknown.
+3. Occlusion. 0 $\rightarrow$ not occluded. 1 $\rightarrow$ partly occluded. 2 $\rightarrow$ mostly occluded. 3 $\rightarrow$ unknown.
 4. Observation angle $[-\pi,\pi]$.
 5. 2D bounding box of objects in the image. Contains coordinates of 4 corners.
 6. 3D object dimensions in meters.
