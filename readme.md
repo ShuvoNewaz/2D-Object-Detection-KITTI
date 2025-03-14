@@ -46,15 +46,12 @@ The lables exist only for the training set. These `.txt` files contain the follo
 
 For the 2D object detection task, we only need the object class and the bounding box coordinates.
 
-## TASKS COMPLETED
+## Model and Data Split
 
-1. Dataloader with collate_fn for consistent image dimensions.
-2. Model structure.
-3. Metrics.
-4. Trainer
+### Model
 
-## TASKS REMAINING AND ISSUES
+The model used for object detection in this work is the RetinaNet first used by [Lin et al.](https://arxiv.org/abs/1708.02002). This work uses a variant of the [Official PyTorch Implementation of RetinaNet](https://github.com/yhenon/pytorch-retinanet/tree/master). However, some functions had to be changed to fit the custom data-loader used in this work.
 
-1. Training MAP not increasing.
-2. GPU runs out of memory.
-3. Validation
+### Data Split
+
+As mentioned earlier, the labels exist only for the training set. The training set is split in a $7:3$ ratio to get a validation set with labels.

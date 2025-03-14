@@ -108,4 +108,4 @@ class ResNet(nn.Module):
 
         anchors = self.anchors(img_batch)
 
-        return features, classification, regression, anchors#, annotations
+        return features, classification, regression, anchors

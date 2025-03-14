@@ -27,13 +27,11 @@ class PyramidFeatures(nn.Module):
         self.P7_1 = nn.ReLU()
         self.P7_2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, stride=2, padding=1)
 
-        # "P8 is computed by applying ReLU followed by a 3x3 stride-2 conv on P7"
-        self.P8_1 = nn.ReLU()
-        self.P8_2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, stride=2, padding=1)
+        # # "P8 is computed by applying ReLU followed by a 3x3 stride-2 conv on P7"
+        # self.P8_1 = nn.ReLU()
+        # self.P8_2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, stride=2, padding=1)
 
     def forward(self, inputs):
-        # for input in inputs:
-        #     print(input.shape)
         C3, C4, C5 = inputs
 
         P5_x = self.P5_1(C5)
@@ -51,13 +49,13 @@ class PyramidFeatures(nn.Module):
 
         P6_x = self.P6(C5)
 
-        # P7_x = self.P7_1(P6_x)
-        P7_x = self.P7_2(P6_x)
+        P7_x = self.P7_1(P6_x)
+        P7_x = self.P7_2(P7_x)
 
-        P8_x = self.P8_1(P7_x)
-        P8_x = self.P8_2(P8_x)
+        # P8_x = self.P8_1(P7_x)
+        # P8_x = self.P8_2(P8_x)
 
-        return [P3_x, P4_x, P5_x, P6_x, P7_x, P8_x]
+        return [P3_x, P4_x, P5_x, P6_x, P7_x]
 
 
 class RegressionModel(nn.Module):
@@ -138,10 +136,10 @@ class ClassificationModel(nn.Module):
         out = self.output_act(out)
 
         # out is B x C x W x H, with C = n_classes + n_anchors
-        out1 = out.permute(0, 2, 3, 1)
+        out = out.permute(0, 2, 3, 1)
 
-        batch_size, width, height, channels = out1.shape
+        batch_size, width, height, channels = out.shape
 
-        out2 = out1.view(batch_size, width, height, self.num_anchors, self.num_classes)
+        out = out.view(batch_size, width, height, self.num_anchors, self.num_classes)
 
-        return out2.contiguous().view(x.shape[0], -1, self.num_classes)
+        return out.contiguous().view(x.shape[0], -1, self.num_classes)

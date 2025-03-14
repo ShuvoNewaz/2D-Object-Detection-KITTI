@@ -6,8 +6,6 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # https://github.com/ponta256/fssd-resnext-voc-coco/blob/master/layers/box_utils.py#L245
 def nms(boxes, scores, nms_thresh=0.5, top_k=200):
-    # boxes_copy = boxes.copy()
-    # scores_copy = scores.copy()
     boxes_copy = boxes.clone().detach().cpu().numpy()
     scores_copy = scores.clone().detach().cpu().numpy()
     keep = []
@@ -59,7 +57,7 @@ def batched_nms(
         return keep
 
 
-def retinanet_training(model, img_batch, classification, regression, anchors):
+def retinanet_outputs(model, img_batch, classification, regression, anchors):
     transformed_anchors = model.regressBoxes(anchors, regression)
     transformed_anchors = model.clipBoxes(transformed_anchors, img_batch)
     predicted_labels = torch.argmax(classification, dim=-1)
@@ -86,16 +84,8 @@ def retinanet_training(model, img_batch, classification, regression, anchors):
             finalPredictedLabels = torch.cat((finalPredictedLabels, predicted_labels[i, anchors_nms_idx]))
             finalAnchorBoxesCoordinates = torch.cat((finalAnchorBoxesCoordinates, anchorBoxes[anchors_nms_idx]))
 
-            # Clear GPU
-            anchorBoxes = anchorBoxes.detach().cpu()
-            scores = scores.detach().cpu()
-            scores_over_thresh = scores_over_thresh.detach().cpu()
-
         results[i]["scores"] = finalScores
         results[i]["labels"] = finalPredictedLabels
         results[i]["boxes"] = finalAnchorBoxesCoordinates
-
-    # Clear GPU
-    transformed_anchors = transformed_anchors.detach().cpu()
 
     return results

@@ -41,20 +41,20 @@ class Trainer:
             self.train_dataset, batch_size=batch_size, shuffle=True, collate_fn=kitti_collate_fn, **dataloader_args
         )
 
-        # self.val_dataset = ImageLoader(
-        #     data_dir, split="validation", transform=val_data_transforms
-        # )
-        # self.val_loader = DataLoader(
-        #     self.val_dataset, batch_size=batch_size, shuffle=True, **dataloader_args
-        # )
+        self.val_dataset = ImageLoader(
+            data_dir, split="validation", transform=val_data_transforms
+        )
+        self.val_loader = DataLoader(
+            self.val_dataset, batch_size=batch_size, shuffle=True, collate_fn=kitti_collate_fn, **dataloader_args
+        )
 
         self.optimizer = optimizer
 
         self.train_loss_history = []
         self.validation_loss_history = []
         self.train_map_history = []
-        self.validation_accuracy_history = []
-        self.best_accuracy = 0
+        self.validation_map_history = []
+        self.best_map = 0
 
         # load the model from the disk if it exists
         if os.path.exists(saved_model_dir) and load_from_disk:
@@ -71,48 +71,25 @@ class Trainer:
 
             train_classification_loss, train_regression_loss, train_loss, train_map = \
                 train(self.train_loader, self.model, self.optimizer, 0.05, device)
-
             self.train_loss_history.append(train_loss)
             self.train_map_history.append(train_map)
             
-            # save_im = epoch_idx == (num_epochs - 1) # Save validation images and predictions at the last epoch
-            # val_loss, val_acc = self.validate()
-            # self.validation_loss_history.append(val_loss)
-            # self.validation_accuracy_history.append(val_acc)
-            # if val_acc > self.best_accuracy:
-            #     self.best_accuracy = val_acc
-            #     save_model(self.image_model, self.optimizer, self.model_dir)
+            val_classification_loss, val_regression_loss, val_loss, val_map = \
+                validate(self.val_loader, self.model, None, 0.05, device)
+            self.validation_loss_history.append(val_loss)
+            self.validation_map_history.append(val_map)
+
+            if val_map > self.best_map:
+                self.best_map = val_map
+                save_model(self.model, self.optimizer, self.saved_model_dir)
                 
-
-            print(
-                f"Epoch:{epoch_idx + 1}"
-                + f" Train Classification Loss:{train_classification_loss:.4f}"
-                + f" Train Regression Loss:{train_regression_loss:.4f}"
-                + f" Train Total Loss:{train_loss:.4f}"
-                # + f" Val Loss: {val_loss:.4f}"
-                + f" Train Mean Average Precision: {train_map:.4f}"
-                # + f" Validation Accuracy: {val_acc:.4f}"
-            )
-
-    
-    def predict(self, saved_model):
-        """Uses the best model on validation to predict the labels and store them"""
-        indexTracker = 0
-        for (x, y, imageDir, annDir) in self.val_loader:
-            x = x.to(device)
-            y = y.to(device)
-
-            n = x.shape[0]
-            logits = saved_model(x)
-            # Return data to cpu
-            x = x.cpu()
-            y = y.cpu()
-
-            # self.val_images[indexTracker:indexTracker+len(x)] = x.squeeze(1).numpy()
-            self.true_labels[indexTracker:indexTracker+len(x)] = y.numpy()
-            self.predictions[indexTracker:indexTracker+len(x)] = torch.argmax(logits, dim=1).cpu().numpy()
-            self.valImageDir += list(imageDir)
-            self.valAnnDir += list(annDir)
-            indexTracker += len(x)
-        self.model.cpu()
-
+            print(f"Epoch {epoch_idx + 1}:")
+            # print(f"\tTrain Classification Loss:{train_classification_loss:.4f}")
+            # print(f"\tTrain Regression Loss:{train_regression_loss:.4f}")
+            print(f"\tTrain Total Loss:{train_loss:.4f}")
+            print(f"\tTrain Mean Average Precision: {train_map:.4f}")
+            print("")
+            # print(f"\tValidation Classification Loss:{val_classification_loss:.4f}")
+            # print(f"\tValidation Regression Loss:{val_regression_loss:.4f}")
+            print(f"\tValidation Total Loss:{val_loss:.4f}")
+            print(f"\tValidation Mean Average Precision: {val_map:.4f}")

@@ -9,12 +9,8 @@ def kitti_collate_fn(batch):
     maxWidth, maxHeight, maxBoxNumber = 1248, 384, 0 # maxHeight hard-coded to avoid dimension mismatch after filter convolution
     
     for image, box, label in batch:
-        # h, w = image.shape[1:]
-        # maxHeight = max(h, maxHeight)
-        # maxWidth = max(w, maxWidth)
         if label is not None:
             maxBoxNumber = max(len(label), maxBoxNumber)
-    # print(maxWidth)
 
     # Pad the images, bounding boxes and labels if necessary
     padded_images = []

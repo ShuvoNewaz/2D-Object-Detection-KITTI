@@ -15,17 +15,29 @@ class ImageLoader(data.Dataset):
                 dataDir: Directory of the dataset w.r.t. the root directory
                 split: training or validation split
         """
-        splitDir = os.path.join(dataDir, split)
+        self.split = split
+
+        # Validation set is extracted from training set
+        split_map = {"training": "training", "validation": \
+                     "training", "testing": "testing"}
+        
+        splitDir = os.path.join(dataDir, split_map[split])
         self.imageDir = os.path.join(splitDir, "image_2")
         self.labelDir = None
-        if split == "training":
+        if split in ["training", "validation"]:
             self.labelDir = os.path.join(splitDir, "label_2")
         self.dataset = self.load_paths()
         self.transform = transform
 
     def load_paths(self):
+        image_dir_list = os.listdir(self.imageDir)[:200]
+        number_of_images = len(image_dir_list)
+        if self.split == "training":
+            image_dir_list = image_dir_list[:int(7 / 10 * number_of_images)]
+        elif self.split == "validation":
+            image_dir_list = image_dir_list[int(7 / 10 * number_of_images):]
         dataPaths = []
-        for i, imageName in enumerate(os.listdir(self.imageDir)):
+        for i, imageName in enumerate(image_dir_list):
             imageID = imageName.split(".")[0]
             imagePath = os.path.join(self.imageDir, f"{imageID}.png")
             if self.labelDir:
@@ -33,8 +45,6 @@ class ImageLoader(data.Dataset):
             else:
                 labelPath = None
             dataPaths.append((imagePath, labelPath))
-            if i == 999:
-                break
 
         return dataPaths
     

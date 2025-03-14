@@ -38,9 +38,11 @@ def load_training_labels(labelPath):
         for line in f:
             lineContents = line.split("\n")[0].split(" ")
             classLabel = lineContents[0]
+            # Uncomment the following if statement if all 8 classes needed
             # if classLabel != "DontCare":
             #     label_id.append(label_encoder[classLabel])
             #     boxes.append([lineContents[4], lineContents[5], lineContents[6], lineContents[7]])
+            # Uncomment the following if statement if only 3 classes needed
             if classLabel in ["Car", "Pedestrian", "Cyclist"]:
                 label_id.append(label_encoder[classLabel])
                 boxes.append([lineContents[4], lineContents[5], lineContents[6], lineContents[7]])
