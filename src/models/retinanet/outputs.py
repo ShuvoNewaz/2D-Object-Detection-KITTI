@@ -19,7 +19,6 @@ def nms(boxes, scores, nms_thresh=0.5, top_k=200):
     idx = np.argsort(scores_copy, axis=0)   # sort in ascending order
     idx = idx[-top_k:]  # indices of the top-k largest vals
 
-
     while len(idx) > 0:
         last = len(idx)-1
         i = idx[last]  # index of current largest val
@@ -34,27 +33,10 @@ def nms(boxes, scores, nms_thresh=0.5, top_k=200):
         h = np.maximum(0, yy2-yy1)
 
         inter = w*h
-        iou = inter / (area[idx[:last]]+area[i]-inter)
+        iou = inter / (area[idx[:last]] + area[i] - inter)
         idx = np.delete(idx, np.concatenate(([last], np.where(iou > nms_thresh)[0])))
 
     return np.array(keep, dtype=np.int64)
-
-# https://github.com/pytorch/vision/blob/master/torchvision/ops/boxes.py#L39
-def batched_nms(
-    boxes,
-    scores,
-    idxs,
-    iou_threshold,
-):
-
-    if boxes.numel() == 0:
-        return torch.empty((0,), dtype=torch.int64, device=boxes.device)
-    else:
-        max_coordinate = boxes.max()
-        offsets = idxs.to(boxes) * (max_coordinate + torch.tensor(1).to(boxes))
-        boxes_for_nms = boxes + offsets[:, None]
-        keep = nms(boxes_for_nms, scores, nms_thresh=iou_threshold)
-        return keep
 
 
 def retinanet_outputs(model, img_batch, classification, regression, anchors):
@@ -65,25 +47,42 @@ def retinanet_outputs(model, img_batch, classification, regression, anchors):
     results = []
 
     for i in range(len(classification)):
+        transformed_anchor = transformed_anchors[i]
+        predicted_label = predicted_labels[i]
+        single_classification = classification[i]
+
+        # Filter out boxes obtained from regression model which have x2 <= x1 and/or y2 <= y1
+        valid_x_coordinates = transformed_anchor[:, 2] > transformed_anchor[:, 0]
+        transformed_anchor = transformed_anchor[valid_x_coordinates]
+        predicted_label = predicted_label[valid_x_coordinates]
+        single_classification = single_classification[valid_x_coordinates]
+
+        valid_y_coordinates = transformed_anchor[:, 3] > transformed_anchor[:, 1]
+        transformed_anchor = transformed_anchor[valid_y_coordinates]
+        predicted_label = predicted_label[valid_y_coordinates]
+        single_classification = single_classification[valid_y_coordinates]
+
         results.append({})
         finalScores = torch.Tensor([]).to(device)
         finalPredictedLabels = torch.Tensor([]).to(device)
         finalAnchorBoxesCoordinates = torch.Tensor([]).to(device)
         for k in range(classification.shape[2]):
-            scores = torch.squeeze(classification[i, :, k])
+            scores = torch.squeeze(single_classification[:, k])
             scores_over_thresh = (scores > 0.05)
             if scores_over_thresh.sum() == 0:
                 # no boxes to NMS, just continue
                 continue
             scores = scores[scores_over_thresh]
-            anchorBoxes = torch.squeeze(transformed_anchors[i])
+            anchorBoxes = torch.squeeze(transformed_anchor)
             anchorBoxes = anchorBoxes[scores_over_thresh]
-            anchors_nms_idx = nms(anchorBoxes, scores, 0.5)
-           
-            finalScores = torch.cat((finalScores, scores[anchors_nms_idx]))
-            finalPredictedLabels = torch.cat((finalPredictedLabels, predicted_labels[i, anchors_nms_idx]))
-            finalAnchorBoxesCoordinates = torch.cat((finalAnchorBoxesCoordinates, anchorBoxes[anchors_nms_idx]))
+            anchors_nms_idx = nms(anchorBoxes, scores, 0.3)
 
+            finalScores = torch.cat((finalScores, scores[anchors_nms_idx]))
+            finalPredictedLabels = torch.cat((finalPredictedLabels,
+                                              predicted_label[anchors_nms_idx]))
+            finalAnchorBoxesCoordinates = torch.cat((finalAnchorBoxesCoordinates,
+                                                     anchorBoxes[anchors_nms_idx]))
+        
         results[i]["scores"] = finalScores
         results[i]["labels"] = finalPredictedLabels
         results[i]["boxes"] = finalAnchorBoxesCoordinates

@@ -46,12 +46,19 @@ The lables exist only for the training set. These `.txt` files contain the follo
 
 For the 2D object detection task, we only need the object class and the bounding box coordinates.
 
-## Model and Data Split
+## Model and Data Processing
 
 ### Model
 
-The model used for object detection in this work is the RetinaNet first used by [Lin et al.](https://arxiv.org/abs/1708.02002). This work uses a variant of the [Official PyTorch Implementation of RetinaNet](https://github.com/yhenon/pytorch-retinanet/tree/master). However, some functions had to be changed to fit the custom data-loader used in this work.
+The model used for object detection in this work is the RetinaNet first used by [Lin et al.](https://arxiv.org/abs/1708.02002) This work uses a variant of the [Official PyTorch Implementation of RetinaNet](https://github.com/yhenon/pytorch-retinanet/tree/master). However, some functions had to be changed to fit the custom data-loader used in this work. Some of the changes are:
+
+- The layer that outputs the final score, labels and anchor indices of the predicted boxes has been changed from doing 1 operation to all the images in the batch to individual operation per image in the batch. This is done to allow computation of metrics, such as the mean average precision.
+- The pyramid level 7 is removed sinces the generated anchors are too tall for the images in the KITTI dataset. The [pyramid feature network](./src/models/retinanet/retinanet_layers.py/) is updated accordingly.
 
 ### Data Split
 
-As mentioned earlier, the labels exist only for the training set. The training set is split in a $7:3$ ratio to get a validation set with labels.
+As mentioned earlier, the labels exist only for the training set. The training set is split in a $8:2$ ratio to get a validation set with labels.
+
+### Image Dimensions
+
+The image dimensions are not consistent across the dataset. Reshaping images would require transforming the bounding box coordinates to meet the new object coordinates. Instead of reshaping, the images are padded to the same height and width. The original annotations can still be used.

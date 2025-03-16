@@ -8,6 +8,16 @@ from sklearn.metrics import recall_score
 
 
 def compute_iou(ground_truth_boxes, predicted_boxes):
+    """
+    args:
+        ground_truth_boxes: (N, 4) array containing the coordinates
+                            of the ground truth boxes
+        predicted_boxes:    (M, 4) array containing the coordinates
+                            of the predicted boxes
+    returns:
+        iou:                (N, M) array containing the intersection over
+                            union of the ground truth boxes and the predicted boxes.
+    """
     N, M = len(ground_truth_boxes), len(predicted_boxes)
     xMin2, yMin2, xMax2, yMax2 = predicted_boxes.T
     intersectingRegions = np.zeros((N, M, 4), dtype=int)

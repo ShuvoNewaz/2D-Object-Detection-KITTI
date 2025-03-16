@@ -5,6 +5,8 @@ from src.models.retinanet.outputs import retinanet_outputs
 from src.training.metrics import *
 from src.plots.bounding_box import image_with_bounding_box
 import matplotlib.pyplot as plt
+from torchvision.transforms.functional import pil_to_tensor, to_pil_image
+from src.plots.bounding_box import image_with_bounding_box
 import gc
 
 
@@ -67,7 +69,7 @@ def epoch_runner(loader, model, optimizer, dx, device):
             results = retinanet_outputs(model, images, classification, regression, anchors)
         classification_loss, regression_loss = batch_loss
         classification_loss, regression_loss = classification_loss[0], regression_loss[0]
-        batch_loss = batch_loss[0] + batch_loss[1]
+        batch_loss = batch_loss[0] + 1 * batch_loss[1]
 
         if optimizer:
             optimizer.zero_grad(set_to_none=True)
@@ -114,6 +116,7 @@ def epoch_runner(loader, model, optimizer, dx, device):
                                                 confidence_thresholds,
                                                 iou_threshold=0.5)
                     mean_ap += compute_mean_average_precision(precisions, recalls)
+                
         mean_ap /= n
 
         # Save loss
@@ -123,7 +126,7 @@ def epoch_runner(loader, model, optimizer, dx, device):
         map_meter.update(val=mean_ap, n=n)
 
         # Free up GPU
-        del images, boxes_labels, classification_loss, regression_loss, batch_loss, results
+        del classification_loss, regression_loss, batch_loss, results
         torch.cuda.synchronize()
         gc.collect()
         torch.cuda.empty_cache()
@@ -137,7 +140,39 @@ def train(train_loader, model, optimizer, dx, device):
     return epoch_runner(train_loader, model, optimizer, dx, device)
 
 
-def validate(val_loader, model, optimizer, dx, device):
+def validate(val_loader, model, dx, device):
     model.eval()
 
-    return epoch_runner(val_loader, model, optimizer, dx, device)
+    return epoch_runner(val_loader, model, None, dx, device)
+
+
+def predict(test_image, model, device, boxes_to_view):
+    label_map = {0: 'Car', 1: 'Pedestrian', 2: 'Cyclist', 3: 'Van',
+                4: 'PS', 5: 'Truck', 6: 'Tram', 7: 'Misc'}
+    color_map = {0: "red", 1: "green", 2: "black", 3: "cyan",
+                  4: "blue", 5: "yellow", 6: "orange", 7: "purple"}
+    
+    test_image_tensor = torch.unsqueeze(test_image, 0)
+
+    with torch.no_grad():
+        test_image_tensor = test_image_tensor.float().to(device)
+        features, classification, regression, anchors = model(test_image_tensor)
+
+        results = retinanet_outputs(model, test_image_tensor, classification, regression, anchors)[0]
+        for key in results:
+            results[key] = results[key].cpu()
+        predictedLabels, predictedBoxes = \
+                    results["labels"], results["boxes"]
+        
+        # Plot the bounding boxes over the image
+        labels, colors  = [], []
+        for predicted_label in predictedLabels:
+            labels.append(label_map[predicted_label.item()])
+            colors.append(color_map[predicted_label.item()])
+        boxes_to_view = min(boxes_to_view, len(labels))
+        bounding_box_image = image_with_bounding_box(image=test_image,
+                                                     boxes=predictedBoxes[:boxes_to_view],
+                                                     labels=labels[:boxes_to_view],
+                                                     colors=colors[:boxes_to_view])
+    
+    return bounding_box_image

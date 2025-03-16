@@ -4,14 +4,8 @@ import torch
 
 
 label_encoder = {
-                    'Car': 0,
-                    'Pedestrian': 1,
-                    'Cyclist': 2,
-                    'Van': 3,
-                    'Person_sitting': 4,
-                    'Truck': 5,
-                    'Tram': 6,
-                    'Misc': 7,
+                    'Car': 0, 'Pedestrian': 1, 'Cyclist': 2, 'Van': 3,
+                    'Person_sitting': 4, 'Truck': 5, 'Tram': 6, 'Misc': 7,
                     'DontCare': -1
                 }
 
@@ -31,31 +25,25 @@ def load_image(path: str) -> Image:
     return image
 
 
-def load_training_labels(labelPath):
+def load_training_labels(labelPath, num_classes):
     label_id = []
     boxes = []
     with open(labelPath, "r") as f:
         for line in f:
             lineContents = line.split("\n")[0].split(" ")
             classLabel = lineContents[0]
-            # Uncomment the following if statement if all 8 classes needed
-            # if classLabel != "DontCare":
-            #     label_id.append(label_encoder[classLabel])
-            #     boxes.append([lineContents[4], lineContents[5], lineContents[6], lineContents[7]])
-            # Uncomment the following if statement if only 3 classes needed
-            if classLabel in ["Car", "Pedestrian", "Cyclist"]:
-                label_id.append(label_encoder[classLabel])
-                boxes.append([lineContents[4], lineContents[5], lineContents[6], lineContents[7]])
+            if num_classes == 8:
+                if classLabel != "DontCare":
+                    label_id.append(label_encoder[classLabel])
+                    boxes.append([lineContents[4], lineContents[5], lineContents[6], lineContents[7]])
+            elif num_classes == 3:
+                if classLabel in ["Car", "Pedestrian", "Cyclist"]:
+                    label_id.append(label_encoder[classLabel])
+                    boxes.append([lineContents[4], lineContents[5], lineContents[6], lineContents[7]])
+            else:
+                raise ValueError("Number of classes must either be 8 or 3")
     f.close()
     label_tensor = torch.tensor(label_id)
     box_tensor = torch.tensor(np.array(boxes).astype(float).astype(int))
     
     return box_tensor, label_tensor
-
-
-def get_corners(boxes):
-    x_center, y_center, width, height = boxes.T
-    xMin, xMax = x_center - width // 2, x_center + width // 2
-    yMin, yMax = y_center - height // 2, y_center + height // 2
-
-    return xMin, yMin, xMax, yMax

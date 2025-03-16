@@ -29,7 +29,18 @@ def get_val_transforms(
 ) -> transforms.Compose:
     val_transforms = transforms.Compose([transforms.ToTensor(),
                                             # transforms.Resize(inp_size),
-                                            # transforms.Normalize(mean=pixel_mean, std=pixel_std)
+                                            transforms.Normalize(mean=pixel_mean, std=pixel_std)
                                         ])
 
     return val_transforms
+
+
+def get_test_transforms(
+    inp_size: Tuple[int, int]=(2, 2),
+    pixel_mean: Sequence[float]=[0.485, 0.456, 0.406],
+    pixel_std: Sequence[float]=[0.229, 0.224, 0.225]
+) -> transforms.Compose:
+    test_transforms = transforms.Compose([transforms.ToTensor(),
+                                        ])
+
+    return test_transforms

@@ -24,6 +24,7 @@ def calc_iou(a, b):
 
     return IoU
 
+
 class FocalLoss(nn.Module):
     #def __init__(self):
 
@@ -59,7 +60,6 @@ class FocalLoss(nn.Module):
 
                 bce = -(torch.log(1.0 - classification))
 
-                # cls_loss = focal_weight * torch.pow(bce, gamma)
                 cls_loss = focal_weight * bce
                 classification_losses.append(cls_loss.sum())
                 regression_losses.append(torch.tensor(0).float().to(device))
@@ -70,11 +70,8 @@ class FocalLoss(nn.Module):
 
             IoU_max, IoU_argmax = torch.max(IoU, dim=1) # num_anchors x 1
 
-            #import pdb
-            #pdb.set_trace()
-
             # compute the loss for classification
-            targets = torch.ones(classification.shape) * -1
+            targets = torch.ones(classification.shape) * -1 # Later converted to a one-hot encoded label
 
             targets = targets.to(device)
 
@@ -87,12 +84,11 @@ class FocalLoss(nn.Module):
             assigned_annotations = bbox_annotation[IoU_argmax, :]
 
             targets[positive_indices, :] = 0
-            targets[positive_indices, assigned_annotations[positive_indices, 4].long()] = 1
+            targets[positive_indices, assigned_annotations[positive_indices, 4].long()] = 1 # one-hot vector
 
             alpha_factor = torch.ones(targets.shape).to(device) * alpha
-
             alpha_factor = torch.where(torch.eq(targets, 1.), alpha_factor, 1. - alpha_factor)
-            focal_weight = torch.where(torch.eq(targets, 1.), 1. - classification, classification)
+            focal_weight = torch.where(torch.eq(targets, 1.), 1. - classification, classification) # less weight to predicted class
             focal_weight = alpha_factor * torch.pow(focal_weight, gamma)
 
             bce = -(targets * torch.log(classification) + (1.0 - targets) * torch.log(1.0 - classification))
@@ -106,7 +102,7 @@ class FocalLoss(nn.Module):
 
             # compute the loss for regression
 
-            if positive_indices.sum() > 0:
+            if num_positive_anchors > 0:
                 assigned_annotations = assigned_annotations[positive_indices, :]
 
                 anchor_widths_pi = anchor_widths[positive_indices]
@@ -147,4 +143,3 @@ class FocalLoss(nn.Module):
                 regression_losses.append(torch.tensor(0).float().to(device))
 
         return torch.stack(classification_losses).mean(dim=0, keepdim=True), torch.stack(regression_losses).mean(dim=0, keepdim=True)
-

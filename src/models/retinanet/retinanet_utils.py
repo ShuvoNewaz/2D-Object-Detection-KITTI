@@ -91,6 +91,7 @@ class BBoxTransform(nn.Module):
         self.mean = mean
         if std is None:
             std = torch.from_numpy(np.array([0.1, 0.1, 0.2, 0.2]).astype(np.float32)).to(device)
+            # std = torch.from_numpy(np.array([0.1, 0.1, 0.1, 0.1]).astype(np.float32)).to(device)
         self.std = std
 
     def forward(self, boxes, deltas):
@@ -103,6 +104,10 @@ class BBoxTransform(nn.Module):
         dy = deltas[:, :, 1] * self.std[1] + self.mean[1]
         dw = deltas[:, :, 2] * self.std[2] + self.mean[2]
         dh = deltas[:, :, 3] * self.std[3] + self.mean[3]
+
+        # Clamp dw and dh
+        dw = torch.clamp(dw, min=-2, max=2)
+        dh = torch.clamp(dh, min=-2, max=2)
 
         pred_ctr_x = ctr_x + dx * widths
         pred_ctr_y = ctr_y + dy * heights

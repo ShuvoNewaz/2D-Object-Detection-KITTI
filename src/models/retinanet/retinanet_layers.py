@@ -6,6 +6,8 @@ class PyramidFeatures(nn.Module):
     def __init__(self, C3_size, C4_size, C5_size, feature_size=256):
         super(PyramidFeatures, self).__init__()
 
+        self.relu = nn.ReLU()
+
         # upsample C5 to get P5 from the FPN paper
         self.P5_1 = nn.Conv2d(C5_size, feature_size, kernel_size=1, stride=1, padding=0)
         self.P5_upsampled = nn.Upsample(scale_factor=2, mode='nearest')
@@ -20,12 +22,12 @@ class PyramidFeatures(nn.Module):
         self.P3_1 = nn.Conv2d(C3_size, feature_size, kernel_size=1, stride=1, padding=0)
         self.P3_2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
 
-        # "P6 is obtained via a 3x3 stride-2 conv on C5"
+        "P6 is obtained via a 3x3 stride-2 conv on C5"
         self.P6 = nn.Conv2d(C5_size, feature_size, kernel_size=3, stride=2, padding=1)
 
         # "P7 is computed by applying ReLU followed by a 3x3 stride-2 conv on P6"
-        self.P7_1 = nn.ReLU()
-        self.P7_2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, stride=2, padding=1)
+        # self.P7_1 = nn.ReLU()
+        # self.P7_2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, stride=2, padding=1)
 
         # # "P8 is computed by applying ReLU followed by a 3x3 stride-2 conv on P7"
         # self.P8_1 = nn.ReLU()
@@ -49,13 +51,14 @@ class PyramidFeatures(nn.Module):
 
         P6_x = self.P6(C5)
 
-        P7_x = self.P7_1(P6_x)
-        P7_x = self.P7_2(P7_x)
+        # P7_x = self.P7_1(P6_x)
+        # P7_x = self.P7_2(P7_x)
 
         # P8_x = self.P8_1(P7_x)
         # P8_x = self.P8_2(P8_x)
 
-        return [P3_x, P4_x, P5_x, P6_x, P7_x]
+        # return [P3_x, P4_x, P5_x, P6_x, P7_x]
+        return [P3_x, P4_x, P5_x, P6_x]
 
 
 class RegressionModel(nn.Module):

@@ -35,18 +35,20 @@ class Trainer:
         dataloader_args = {}
 
         self.train_dataset = ImageLoader(
-            data_dir, split="training", transform=train_data_transforms
+            data_dir, split="training", num_classes=self.model.num_classes, transform=train_data_transforms
         )
         self.train_loader = DataLoader(
             self.train_dataset, batch_size=batch_size, shuffle=True, collate_fn=kitti_collate_fn, **dataloader_args
         )
+        self.train_dataset.plot_label_distribution()
 
         self.val_dataset = ImageLoader(
-            data_dir, split="validation", transform=val_data_transforms
+            data_dir, split="validation", num_classes=self.model.num_classes, transform=val_data_transforms
         )
         self.val_loader = DataLoader(
             self.val_dataset, batch_size=batch_size, shuffle=True, collate_fn=kitti_collate_fn, **dataloader_args
         )
+        self.val_dataset.plot_label_distribution()
 
         self.optimizer = optimizer
 
@@ -75,17 +77,17 @@ class Trainer:
             self.train_map_history.append(train_map)
             
             val_classification_loss, val_regression_loss, val_loss, val_map = \
-                validate(self.val_loader, self.model, None, 0.05, device)
+                validate(self.val_loader, self.model, 0.05, device)
             self.validation_loss_history.append(val_loss)
             self.validation_map_history.append(val_map)
 
             if val_map > self.best_map:
                 self.best_map = val_map
-                save_model(self.model, self.optimizer, self.saved_model_dir)
+            save_model(self.model, self.optimizer, self.saved_model_dir)
                 
             print(f"Epoch {epoch_idx + 1}:")
-            # print(f"\tTrain Classification Loss:{train_classification_loss:.4f}")
-            # print(f"\tTrain Regression Loss:{train_regression_loss:.4f}")
+            print(f"\tTrain Classification Loss:{train_classification_loss:.4f}")
+            print(f"\tTrain Regression Loss:{train_regression_loss:.4f}")
             print(f"\tTrain Total Loss:{train_loss:.4f}")
             print(f"\tTrain Mean Average Precision: {train_map:.4f}")
             print("")
@@ -93,3 +95,4 @@ class Trainer:
             # print(f"\tValidation Regression Loss:{val_regression_loss:.4f}")
             print(f"\tValidation Total Loss:{val_loss:.4f}")
             print(f"\tValidation Mean Average Precision: {val_map:.4f}")
+        self.model = self.model.cpu()

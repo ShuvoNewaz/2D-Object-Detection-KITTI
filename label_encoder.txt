@@ -1,10 +1,10 @@
 label_encoder = {
                     'Car': 0,
-                    'Van': 1,
-                    'Truck': 2,
-                    'Pedestrian': 3,
+                    'Pedestrian': 1,
+                    'Cyclist': 2,
+                    'Van': 3,
                     'Person_sitting': 4,
-                    'Cyclist': 5,
+                    'Truck': 5,
                     'Tram': 6,
                     'Misc': 7,
                     'DontCare': -1
