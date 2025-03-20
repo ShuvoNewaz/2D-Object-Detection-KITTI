@@ -1,10 +1,13 @@
-from typing import Tuple
-import torch
-import torch.nn.functional as F
 import numpy as np
-from sklearn.metrics import confusion_matrix
-from sklearn.metrics import precision_score
-from sklearn.metrics import recall_score
+
+"""
+mAP contribution of minority classes is too low.
+Instead of mAP, we compute AP for each class separately over each image.
+We keep track of the number of images that contribute to the average precision for each class.
+We compute the precision and recall for each class and then compute the average precision using 11-point interpolation.
+We sum up the individual average precision of each class over all images.
+We divide the sum by the number of images that contribute to the average precision for each class.
+"""
 
 
 def compute_iou(ground_truth_boxes, predicted_boxes):
@@ -41,170 +44,98 @@ def compute_iou(ground_truth_boxes, predicted_boxes):
     return iou
 
 
-def match_boxes(iou, scores,
-                confidence_threshold,
-                iou_threshold):
+def precision_recall_curve(ground_truth_boxes,
+                            ground_truth_labels,
+                            positive_class,
+                            predicted_boxes,
+                            predicted_labels,
+                            scores,
+                            iou_threshold):
     """
     args:
-        iou:                    The intesection over union of the ground truth boxes
-                                and predicted boxes. (N x M).
-        scores:                 Classification scores obtained from the classification network
-        confidence_threshold:   The minimum confidence required for a predicted box to match
-                                with a ground truth box.                
-        iou_threshold:          The minimum iou required for a predicted box to match
-                                with a ground truth box.
+        ground_truth_boxes:     Array containing the coordinates
+                                of the ground truth boxes
+        ground_truth_labels:    Array containing the labels of the ground truth boxes
+        positive_class:         The label of the positive class
+        predicted_boxes:        Array containing the coordinates
+                                of the predicted boxes
+        predicted_labels:       Array containing the labels of the predicted boxes
+        scores:                 Array containing the confidence scores of the predicted boxes
+        iou_threshold:          The threshold for considering a prediction to be a true positive
     returns:
-        matched_boxes:          dictionary containing indices of ground truth boxes
-                                mapped to the indices of predicted boxes.
+        precisions:             The precision values for the given recall values
+        recalls:                The recall values for the given precision values
     """
+    # Filter out the boxes and labels for the positive class
+    class_gt_boxes = ground_truth_boxes[ground_truth_labels == positive_class]
+    class_predicted_boxes = predicted_boxes[predicted_labels == positive_class]
+    scores = scores[predicted_labels == positive_class]
+    contributes = 1 # To check if positive class in current image contributes to AP
+    if len(class_gt_boxes) == 0: # No ground truth boxes for this class
+        if len(class_predicted_boxes) == 0: # No predicted boxes either
+            contributes = 0 # No contribution to AP
+        return np.array([0]), np.array([0]), contributes
+    
+    iou = compute_iou(class_gt_boxes, class_predicted_boxes)
     N, M = iou.shape
     # scores need global sorting because they are sorted 
     # according to class labels (locally sorted)
     sorted_score_indices = np.argsort(scores)[::-1]
-    matched_boxes = {} # {gt_index: predicted_index}
+    matched_boxes = set()
     gt_counter = 0
     predicted_box_counter = 0
+    TP, FP = 0, 0
+    TPs, FPs = [], []
     
-    visited_predicted_boxes = set()
     while len(matched_boxes) < N and predicted_box_counter < M:
         predicted_box_index = sorted_score_indices[predicted_box_counter]
-        if scores[predicted_box_index] < confidence_threshold:
-            break
-        if predicted_box_index not in visited_predicted_boxes:
-            highest_iou_gt_box_indices = np.argsort(iou[:, predicted_box_index])[::-1]
-            visited_predicted_boxes.add(predicted_box_index)
+        highest_iou_gt_box_indices = \
+            np.argsort(iou[:, predicted_box_index])[::-1]
         # If the highest IOU is less than threshold, skip predicted box
         if iou[highest_iou_gt_box_indices[gt_counter], \
                predicted_box_index] < iou_threshold:
             predicted_box_counter += 1
             gt_counter = 0
+            FP += 1
+            TPs.append(TP)
+            FPs.append(FP)
             continue
         gt_box_matched = highest_iou_gt_box_indices[gt_counter]
         if gt_box_matched not in matched_boxes:
-            matched_boxes[gt_box_matched] = predicted_box_index
+            matched_boxes.add(gt_box_matched)
             predicted_box_counter += 1
             gt_counter = 0
+            TP += 1
+            TPs.append(TP)
+            FPs.append(FP)
         else:
             gt_counter += 1
 
-    # Fill up un-predicted ground truth boxes with garbage predicted box indices
-    for i in range(N):
-        if i not in matched_boxes:
-            matched_boxes[i] = -1
-    return matched_boxes
-
-
-def extract_predicted_labels(matched_boxes, all_predicted_labels):
-    """
-    args:
-        matched_boxes:          dictionary containing indices of ground truth boxes
-                                mapped to the indices of predicted boxes.
-        all_predicted_labels:   The labels of all the predicted boxes.
-    returns:
-        predicted_labels:       Predicted labels of the predicted boxes that matched
-                                with ground truth boxes.
-    """
-    predicted_labels = np.zeros(len(matched_boxes), dtype=int) - 1
-    for gt_box_index in matched_boxes:
-        if matched_boxes[gt_box_index] != -1:
-            predicted_box_index = matched_boxes[gt_box_index]
-            predicted_labels[gt_box_index] = all_predicted_labels[predicted_box_index]
+    FP = M - TP
+    TPs.append(TP)
+    FPs.append(FP)
+    TPs, FPs = np.array(TPs), np.array(FPs)
+    precisions = np.nan_to_num(TPs / (TPs + FPs))
+    recalls = TPs / N
     
-    return predicted_labels
+    return precisions, recalls, contributes
 
 
-def make_binary(labels, positive_class, placeholder_class=100):
-    """
-    Turn a multi-class label environment into a one-vs-all binary label.
-    Required for per-class precision and recall computation.
-    args:
-        labels:             The initial multi-class labels.
-        positive_class:     The class to be considered.
-        placeholder_class:  A placeholder to facilitate swapping.
-    returns:
-        labels:             The binary labels (1-vs-all).
-    """
-    labels[labels == positive_class] = placeholder_class
-    labels[labels != placeholder_class] = 0
-    labels[labels == placeholder_class] = 1
-
-    return labels
-
-
-def precision_recall_curve(true_labels,
-                           all_predicted_labels,
-                           scores, iou, positive_class,
-                           confidence_thresholds,
-                           iou_threshold,
-                           placeholder_class=100):
-    """
-    For a given class labels, finds the precision-recall curve over different thresholds
-    of the output score.
-    args:
-        true_labels:            Ground-truth labels of the bounding boxes.
-        all_predicted_labels:   The labels of all the predicted boxes.
-        positive class:         The class in consideration (1-vs-all).
-        confidence_thresholds:  The minimum confidence required for a predicted box
-                                to match with a ground truth box.
-        iou_threshold:          The minimum iou required for a predicted box
-                                to match with a ground truth box.
-        placeholder_class:      A placeholder to facilitate swapping.
-    returns:
-        precisions:             The precision values over all thresholds.
-        recalls:                The recall values over all thresholds.
-    """
-    precisions, recalls = [], []
-    true_labels_copy = true_labels.copy()
-    true_labels_copy = make_binary(true_labels_copy,
-                                   positive_class,
-                                   placeholder_class)
-    for confidence_threshold in confidence_thresholds:
-        matched_boxes = match_boxes(iou, scores,
-                                    confidence_threshold,
-                                    iou_threshold)
-        predicted_labels = extract_predicted_labels(matched_boxes, all_predicted_labels)
-        predicted_labels = make_binary(predicted_labels,
-                                       positive_class,
-                                       placeholder_class)
-        precisions.append(precision_score(y_true=true_labels_copy,
-                                          y_pred=predicted_labels, pos_label=1))
-        recalls.append(recall_score(y_true=true_labels_copy,
-                                    y_pred=predicted_labels, pos_label=1))
-    precisions, recalls = np.array(precisions), np.array(recalls)
-    sort_indices = np.argsort(recalls)
-
-    return precisions[sort_indices], recalls[sort_indices]
-
-
-def trapezoid_rule(precisions, recalls):
+def ap_11pt(precisions, recalls):
     """
     args:
         precisions: The precision values sorted according to the recall values.
         recalls:    The sorted recall values.
     returns:
-        area:       The area under the precision-recall curve.
+        ap:         The average precision computed using 11-point interpolation.
     """
-    areas = (recalls[1:] - recalls[:-1]) * (precisions[1:] + precisions[:-1]) / 2
+    ap = 0
+    for t in np.arange(0, 1.1, 0.1):
+        if (recalls >= t).sum() == 0:
+            p = 0
+        else:
+            p = precisions[recalls >= t].max()
+        ap += p
+    ap /= 11
 
-    return areas.sum()
-
-
-def compute_mean_average_precision(precisions, recalls):
-    """
-    Computes the area under the precision-recall curve.
-    args:
-        precisions:         (K, steps) array containing class-wise precision scores,
-                            where K is the number of classes and steps is the
-                            number of thresholds.
-        recalls:            (K, steps) array containing class-wise recall scores,
-                            where K is the number of classes and steps is the
-                            number of thresholds.
-    returns:
-        average_precisions: The mean average precision over all classes.
-    """
-    K = len(precisions)
-    average_precisions = np.zeros(K)
-    for k in range(K):
-        average_precisions[k] = trapezoid_rule(precisions[k], recalls[k])
-
-    return average_precisions.mean()
+    return ap

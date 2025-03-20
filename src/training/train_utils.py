@@ -47,14 +47,14 @@ def save_model(model, optimizer, saved_model_dir) -> None:
     )
 
 
-def epoch_runner(loader, model, optimizer, dx, device):
+def epoch_runner(loader, model, optimizer, device):
     """Implements the main training/validation loop."""
     num_classes = model.num_classes
-    loss_meter = AverageMeter("train loss")
-    classification_loss_meter = AverageMeter("train loss")
-    regression_loss_meter = AverageMeter("train loss")
-    map_meter = AverageMeter("train accuracy")
-    confidence_thresholds = np.arange(0.05, 0.95, dx)
+    loss_meter = AverageMeter("total loss")
+    classification_loss_meter = AverageMeter("classification loss")
+    regression_loss_meter = AverageMeter("regression loss")
+    averagePrecisions = np.zeros(num_classes)
+    imageContributionCount = np.zeros(num_classes) # to keep track of the number of images that contribute to the average precision for each class
 
     # loop over each minibatch
     for batchCount, (images, boxes_labels) in enumerate(loader):
@@ -96,9 +96,8 @@ def epoch_runner(loader, model, optimizer, dx, device):
         anchors = anchors.detach().cpu()
         del features, classification, regression, anchors
 
-        # Compute MAP
+        # Compute AP
         with torch.no_grad():
-            mean_ap = 0
             result_keys = ["scores", "labels", "boxes"]
             for i in range(n):
                 boxes_i = boxes[i][true_labels[i] != -1]
@@ -106,30 +105,23 @@ def epoch_runner(loader, model, optimizer, dx, device):
                 
                 for key in result_keys:
                     results[i][key] = results[i][key].detach().cpu()
-                finalScores, finalPredictedLabels, finalAnchorBoxesCoordinates = \
+                finalScores, finalPredictedLabels, finalPredictedBoxes = \
                     results[i]["scores"], results[i]["labels"], results[i]["boxes"]
                 results[i].clear()
-                finalAnchorBoxesCoordinates = torch.maximum(finalAnchorBoxesCoordinates, torch.tensor(0)).int()
-                if finalAnchorBoxesCoordinates.ndim > 1: # If a prediction is made
-                    iou = compute_iou(boxes_i, finalAnchorBoxesCoordinates)
-                    precisions = np.zeros((num_classes, len(confidence_thresholds)))
-                    recalls = np.zeros((num_classes, len(confidence_thresholds)))
+                finalPredictedBoxes = torch.maximum(finalPredictedBoxes, torch.tensor(0)).int()
+                if finalPredictedBoxes.ndim > 1: # If a prediction is made
                     for k in range(num_classes):
-                        precisions[k], recalls[k] = \
-                            precision_recall_curve(true_labels_i.astype(int),
-                                                finalPredictedLabels.numpy().astype(int),
-                                                finalScores.numpy(),
-                                                iou, k,
-                                                confidence_thresholds,
-                                                iou_threshold=0.5)
-                    mean_ap += compute_mean_average_precision(precisions, recalls)
-        mean_ap /= n
+                        precisions, recalls, contributes = precision_recall_curve(boxes_i, true_labels_i,
+                                                                k, finalPredictedBoxes.numpy(),
+                                                                finalPredictedLabels.numpy(),
+                                                                finalScores.numpy(), 0.4)
+                        averagePrecisions[k] += ap_11pt(precisions, recalls)
+                        imageContributionCount[k] += contributes
 
-        # Save loss and MAP
+        # Save loss
         loss_meter.update(val=float(batch_loss), n=n)
         classification_loss_meter.update(val=float(classification_loss), n=n)
         regression_loss_meter.update(val=float(regression_loss), n=n)
-        map_meter.update(val=mean_ap, n=n)
 
         # Free up GPU
         del classification_loss, regression_loss, batch_loss, results
@@ -138,20 +130,20 @@ def epoch_runner(loader, model, optimizer, dx, device):
         torch.cuda.empty_cache()
 
     return classification_loss_meter.avg, \
-        regression_loss_meter.avg, loss_meter.avg, map_meter.avg
+        regression_loss_meter.avg, loss_meter.avg, averagePrecisions, imageContributionCount
 
 
-def train(train_loader, model, optimizer, dx, device):
+def train(train_loader, model, optimizer, device):
     model.train()
     model.freeze_bn()
 
-    return epoch_runner(train_loader, model, optimizer, dx, device)
+    return epoch_runner(train_loader, model, optimizer, device)
 
 
-def validate(val_loader, model, dx, device):
+def validate(val_loader, model, device):
     model.eval()
 
-    return epoch_runner(val_loader, model, None, dx, device)
+    return epoch_runner(val_loader, model, None, device)
 
 
 def predict(test_image, model, device):    

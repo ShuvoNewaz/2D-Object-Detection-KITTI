@@ -58,7 +58,7 @@ def retinanet_outputs(model, img_batch, classification, regression, anchors):
         results.append({})
         finalScores = torch.Tensor([]).to(device)
         finalPredictedLabels = torch.Tensor([]).to(device)
-        finalAnchorBoxesCoordinates = torch.Tensor([]).to(device)
+        finalPredictedBoxes = torch.Tensor([]).to(device)
         for k in range(classification.shape[2]):
             scores = torch.squeeze(single_classification[:, k])
             scores_over_thresh = (scores > 0.05)
@@ -73,11 +73,11 @@ def retinanet_outputs(model, img_batch, classification, regression, anchors):
             finalScores = torch.cat((finalScores, scores[anchors_nms_idx]))
             finalPredictedLabels = torch.cat((finalPredictedLabels,
                                                  torch.tensor([k] * anchors_nms_idx.shape[0]).to(device)))
-            finalAnchorBoxesCoordinates = torch.cat((finalAnchorBoxesCoordinates,
+            finalPredictedBoxes = torch.cat((finalPredictedBoxes,
                                                      anchorBoxes[anchors_nms_idx]))
         
         results[i]["scores"] = finalScores
         results[i]["labels"] = finalPredictedLabels
-        results[i]["boxes"] = finalAnchorBoxesCoordinates
+        results[i]["boxes"] = finalPredictedBoxes
 
     return results
