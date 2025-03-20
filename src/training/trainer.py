@@ -83,16 +83,25 @@ class Trainer:
 
             if val_map > self.best_map:
                 self.best_map = val_map
-            save_model(self.model, self.optimizer, self.saved_model_dir)
+                save_model(self.model, self.optimizer, self.saved_model_dir)
                 
             print(f"Epoch {epoch_idx + 1}:")
-            print(f"\tTrain Classification Loss:{train_classification_loss:.4f}")
-            print(f"\tTrain Regression Loss:{train_regression_loss:.4f}")
+            # print(f"\tTrain Classification Loss:{train_classification_loss:.4f}")
+            # print(f"\tTrain Regression Loss:{train_regression_loss:.4f}")
             print(f"\tTrain Total Loss:{train_loss:.4f}")
             print(f"\tTrain Mean Average Precision: {train_map:.4f}")
-            print("")
+            # print("")
             # print(f"\tValidation Classification Loss:{val_classification_loss:.4f}")
             # print(f"\tValidation Regression Loss:{val_regression_loss:.4f}")
             print(f"\tValidation Total Loss:{val_loss:.4f}")
             print(f"\tValidation Mean Average Precision: {val_map:.4f}")
+
+        # Empty GPU after all epochs
         self.model = self.model.cpu()
+        for hook in self.model._forward_hooks.values():
+            hook.remove()
+        for hook in self.model._backward_hooks.values():
+            hook.remove()
+        gc.collect()
+        torch.cuda.empty_cache()
+        del self.model

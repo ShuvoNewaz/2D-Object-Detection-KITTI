@@ -42,25 +42,18 @@ def nms(boxes, scores, nms_thresh=0.5, top_k=200):
 def retinanet_outputs(model, img_batch, classification, regression, anchors):
     transformed_anchors = model.regressBoxes(anchors, regression)
     transformed_anchors = model.clipBoxes(transformed_anchors, img_batch)
-    predicted_labels = torch.argmax(classification, dim=-1)
 
     results = []
 
     for i in range(len(classification)):
         transformed_anchor = transformed_anchors[i]
-        predicted_label = predicted_labels[i]
         single_classification = classification[i]
 
         # Filter out boxes obtained from regression model which have x2 <= x1 and/or y2 <= y1
-        valid_x_coordinates = transformed_anchor[:, 2] > transformed_anchor[:, 0]
-        transformed_anchor = transformed_anchor[valid_x_coordinates]
-        predicted_label = predicted_label[valid_x_coordinates]
-        single_classification = single_classification[valid_x_coordinates]
-
-        valid_y_coordinates = transformed_anchor[:, 3] > transformed_anchor[:, 1]
-        transformed_anchor = transformed_anchor[valid_y_coordinates]
-        predicted_label = predicted_label[valid_y_coordinates]
-        single_classification = single_classification[valid_y_coordinates]
+        valid_coordinates = (transformed_anchor[:, 2] > transformed_anchor[:, 0]) * \
+                            (transformed_anchor[:, 3] > transformed_anchor[:, 1])
+        transformed_anchor = transformed_anchor[valid_coordinates]
+        single_classification = single_classification[valid_coordinates]
 
         results.append({})
         finalScores = torch.Tensor([]).to(device)
@@ -79,7 +72,7 @@ def retinanet_outputs(model, img_batch, classification, regression, anchors):
 
             finalScores = torch.cat((finalScores, scores[anchors_nms_idx]))
             finalPredictedLabels = torch.cat((finalPredictedLabels,
-                                              predicted_label[anchors_nms_idx]))
+                                                 torch.tensor([k] * anchors_nms_idx.shape[0]).to(device)))
             finalAnchorBoxesCoordinates = torch.cat((finalAnchorBoxesCoordinates,
                                                      anchorBoxes[anchors_nms_idx]))
         

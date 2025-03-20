@@ -43,7 +43,6 @@ class FocalLoss(nn.Module):
         anchor_ctr_y   = anchor[:, 1] + 0.5 * anchor_heights
 
         for j in range(batch_size):
-
             classification = classifications[j, :, :]
             regression = regressions[j, :, :]
 
@@ -67,20 +66,15 @@ class FocalLoss(nn.Module):
                 continue
 
             IoU = calc_iou(anchors[0, :, :], bbox_annotation[:, :4]) # num_anchors x num_annotations
-
             IoU_max, IoU_argmax = torch.max(IoU, dim=1) # num_anchors x 1
 
             # compute the loss for classification
             targets = torch.ones(classification.shape) * -1 # Later converted to a one-hot encoded label
-
             targets = targets.to(device)
-
             targets[torch.lt(IoU_max, 0.4), :] = 0
 
             positive_indices = torch.ge(IoU_max, 0.5)
-
             num_positive_anchors = positive_indices.sum()
-
             assigned_annotations = bbox_annotation[IoU_argmax, :]
 
             targets[positive_indices, :] = 0
@@ -95,9 +89,7 @@ class FocalLoss(nn.Module):
 
             # cls_loss = focal_weight * torch.pow(bce, gamma)
             cls_loss = focal_weight * bce
-
             cls_loss = torch.where(torch.ne(targets, -1.0), cls_loss, torch.zeros(cls_loss.shape).to(device))
- 
             classification_losses.append(cls_loss.sum()/torch.clamp(num_positive_anchors.float(), min=1.0))
 
             # compute the loss for regression
@@ -126,8 +118,7 @@ class FocalLoss(nn.Module):
 
                 targets = torch.stack((targets_dx, targets_dy, targets_dw, targets_dh))
                 targets = targets.t()
-
-                targets = targets/torch.Tensor([[0.1, 0.1, 0.2, 0.2]]).to(device)
+                targets = targets / torch.Tensor([[0.1, 0.1, 0.2, 0.2]]).to(device)
 
                 negative_indices = 1 + (~positive_indices)
 

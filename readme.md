@@ -27,7 +27,7 @@ The RGB images depict a variety of scenes containing different objects. There ar
 
 #### Labels
 
-The lables exist only for the training set. These `.txt` files contain the following:
+The labels exist only for the training set. These `.txt` files contain the following:
 
 1. The object class.
 2. Truncation - A measure of how much the object out of image bounds. 0 $\rightarrow$ non-truncated. 1 $\rightarrow$ truncated.
@@ -53,7 +53,7 @@ For the 2D object detection task, we only need the object class and the bounding
 The model used for object detection in this work is the RetinaNet first used by [Lin et al.](https://arxiv.org/abs/1708.02002) This work uses a variant of the [Official PyTorch Implementation of RetinaNet](https://github.com/yhenon/pytorch-retinanet/tree/master). However, some functions had to be changed to fit the custom data-loader used in this work. Some of the changes are:
 
 - The layer that outputs the final score, labels and anchor indices of the predicted boxes has been changed from doing 1 operation to all the images in the batch to individual operation per image in the batch. This is done to allow computation of metrics, such as the mean average precision.
-- The pyramid level 7 is removed sinces the generated anchors are too tall for the images in the KITTI dataset. The [pyramid feature network](./src/models/retinanet/retinanet_layers.py/) is updated accordingly.
+- The pyramid level 7 is removed since the generated anchors are too tall for the images in the KITTI dataset. The [pyramid feature network](./src/models/retinanet/retinanet_layers.py/) is updated accordingly.
 
 ### Data Split
 
@@ -62,3 +62,11 @@ As mentioned earlier, the labels exist only for the training set. The training s
 ### Image Dimensions
 
 The image dimensions are not consistent across the dataset. Reshaping images would require transforming the bounding box coordinates to meet the new object coordinates. Instead of reshaping, the images are padded to the same height and width. The original annotations can still be used.
+
+## Results
+
+Detections on the validation set after training on 3 classes (cars, pedestrians and cyclists) are shown below. Depending on the threshold used for [NMS](src/models/retinanet/outputs.py), there may be spurious boxes on a single objects, or missing boxes on objects in close proximity to detected objects.
+
+<p align="center">
+  <img src="results/boxes.png"/>
+</p>

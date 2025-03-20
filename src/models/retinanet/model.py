@@ -2,7 +2,6 @@ import torch.nn as nn
 import torch
 import math
 # import torch.utils.model_zoo as model_zoo
-from torchvision.ops import nms
 from src.models.retinanet.retinanet_utils import BasicBlock, Bottleneck, BBoxTransform, ClipBoxes
 from src.models.retinanet.anchors import Anchors
 from src.models.retinanet.losses import FocalLoss

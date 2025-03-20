@@ -5,7 +5,6 @@ from src.models.retinanet.outputs import retinanet_outputs
 from src.training.metrics import *
 from src.plots.bounding_box import image_with_bounding_box
 import matplotlib.pyplot as plt
-from torchvision.transforms.functional import pil_to_tensor, to_pil_image
 from src.plots.bounding_box import image_with_bounding_box
 import gc
 
@@ -64,9 +63,13 @@ def epoch_runner(loader, model, optimizer, dx, device):
 
         n = images.shape[0]
         features, classification, regression, anchors = model(images)
-        batch_loss = model.loss_criterion(classification, regression, anchors, boxes_labels)
+        batch_loss = model.loss_criterion(classification,
+                                          regression, anchors,
+                                          boxes_labels)
         with torch.no_grad():
-            results = retinanet_outputs(model, images, classification, regression, anchors)
+            results = retinanet_outputs(model, images,
+                                        classification,
+                                        regression, anchors)
         classification_loss, regression_loss = batch_loss
         classification_loss, regression_loss = classification_loss[0], regression_loss[0]
         batch_loss = batch_loss[0] + 1 * batch_loss[1]
@@ -74,6 +77,7 @@ def epoch_runner(loader, model, optimizer, dx, device):
         if optimizer:
             optimizer.zero_grad(set_to_none=True)
             batch_loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 0.1)
             optimizer.step()
 
         # Free up GPU
@@ -97,6 +101,9 @@ def epoch_runner(loader, model, optimizer, dx, device):
             mean_ap = 0
             result_keys = ["scores", "labels", "boxes"]
             for i in range(n):
+                boxes_i = boxes[i][true_labels[i] != -1]
+                true_labels_i = true_labels[i][true_labels[i] != -1]
+                
                 for key in result_keys:
                     results[i][key] = results[i][key].detach().cpu()
                 finalScores, finalPredictedLabels, finalAnchorBoxesCoordinates = \
@@ -104,22 +111,21 @@ def epoch_runner(loader, model, optimizer, dx, device):
                 results[i].clear()
                 finalAnchorBoxesCoordinates = torch.maximum(finalAnchorBoxesCoordinates, torch.tensor(0)).int()
                 if finalAnchorBoxesCoordinates.ndim > 1: # If a prediction is made
-                    iou = compute_iou(boxes[i], finalAnchorBoxesCoordinates)
+                    iou = compute_iou(boxes_i, finalAnchorBoxesCoordinates)
                     precisions = np.zeros((num_classes, len(confidence_thresholds)))
                     recalls = np.zeros((num_classes, len(confidence_thresholds)))
                     for k in range(num_classes):
                         precisions[k], recalls[k] = \
-                            precision_recall_curve(true_labels[i].astype(int),
+                            precision_recall_curve(true_labels_i.astype(int),
                                                 finalPredictedLabels.numpy().astype(int),
-                                                finalScores,
+                                                finalScores.numpy(),
                                                 iou, k,
                                                 confidence_thresholds,
                                                 iou_threshold=0.5)
                     mean_ap += compute_mean_average_precision(precisions, recalls)
-                
         mean_ap /= n
 
-        # Save loss
+        # Save loss and MAP
         loss_meter.update(val=float(batch_loss), n=n)
         classification_loss_meter.update(val=float(classification_loss), n=n)
         regression_loss_meter.update(val=float(regression_loss), n=n)
@@ -131,11 +137,13 @@ def epoch_runner(loader, model, optimizer, dx, device):
         gc.collect()
         torch.cuda.empty_cache()
 
-    return classification_loss_meter.avg, regression_loss_meter.avg, loss_meter.avg, map_meter.avg
+    return classification_loss_meter.avg, \
+        regression_loss_meter.avg, loss_meter.avg, map_meter.avg
 
 
 def train(train_loader, model, optimizer, dx, device):
     model.train()
+    model.freeze_bn()
 
     return epoch_runner(train_loader, model, optimizer, dx, device)
 
@@ -146,33 +154,26 @@ def validate(val_loader, model, dx, device):
     return epoch_runner(val_loader, model, None, dx, device)
 
 
-def predict(test_image, model, device, boxes_to_view):
-    label_map = {0: 'Car', 1: 'Pedestrian', 2: 'Cyclist', 3: 'Van',
-                4: 'PS', 5: 'Truck', 6: 'Tram', 7: 'Misc'}
-    color_map = {0: "red", 1: "green", 2: "black", 3: "cyan",
-                  4: "blue", 5: "yellow", 6: "orange", 7: "purple"}
-    
+def predict(test_image, model, device):    
     test_image_tensor = torch.unsqueeze(test_image, 0)
 
     with torch.no_grad():
         test_image_tensor = test_image_tensor.float().to(device)
         features, classification, regression, anchors = model(test_image_tensor)
 
-        results = retinanet_outputs(model, test_image_tensor, classification, regression, anchors)[0]
+        results = retinanet_outputs(model, test_image_tensor,
+                                    classification,
+                                    regression, anchors)[0]
         for key in results:
             results[key] = results[key].cpu()
-        predictedLabels, predictedBoxes = \
-                    results["labels"], results["boxes"]
+        scores, predictedLabels, predictedBoxes = \
+                    results["scores"], results["labels"], results["boxes"]
         
         # Plot the bounding boxes over the image
-        labels, colors  = [], []
-        for predicted_label in predictedLabels:
-            labels.append(label_map[predicted_label.item()])
-            colors.append(color_map[predicted_label.item()])
-        boxes_to_view = min(boxes_to_view, len(labels))
+        boxes_to_view = scores > 0.35
         bounding_box_image = image_with_bounding_box(image=test_image,
-                                                     boxes=predictedBoxes[:boxes_to_view],
-                                                     labels=labels[:boxes_to_view],
-                                                     colors=colors[:boxes_to_view])
+                                                     boxes=predictedBoxes[boxes_to_view],
+                                                     class_labels=predictedLabels[boxes_to_view]
+                                                     )
     
     return bounding_box_image

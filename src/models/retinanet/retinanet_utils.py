@@ -91,7 +91,6 @@ class BBoxTransform(nn.Module):
         self.mean = mean
         if std is None:
             std = torch.from_numpy(np.array([0.1, 0.1, 0.2, 0.2]).astype(np.float32)).to(device)
-            # std = torch.from_numpy(np.array([0.1, 0.1, 0.1, 0.1]).astype(np.float32)).to(device)
         self.std = std
 
     def forward(self, boxes, deltas):
@@ -105,9 +104,9 @@ class BBoxTransform(nn.Module):
         dw = deltas[:, :, 2] * self.std[2] + self.mean[2]
         dh = deltas[:, :, 3] * self.std[3] + self.mean[3]
 
-        # Clamp dw and dh
-        dw = torch.clamp(dw, min=-2, max=2)
-        dh = torch.clamp(dh, min=-2, max=2)
+        # # Clamp dw and dh
+        # dw = torch.clamp(dw, min=-2, max=2)
+        # dh = torch.clamp(dh, min=-2, max=2)
 
         pred_ctr_x = ctr_x + dx * widths
         pred_ctr_y = ctr_y + dy * heights
@@ -125,12 +124,10 @@ class BBoxTransform(nn.Module):
 
 
 class ClipBoxes(nn.Module):
-
     def __init__(self, width=None, height=None):
         super(ClipBoxes, self).__init__()
 
     def forward(self, boxes, img):
-
         batch_size, num_channels, height, width = img.shape
 
         boxes[:, :, 0] = torch.clamp(boxes[:, :, 0], min=0)
