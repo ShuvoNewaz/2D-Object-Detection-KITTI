@@ -30,7 +30,7 @@ class ImageLoader(data.Dataset):
         print(f"{split} data size: {len(self.dataset)} images.")
 
     def load_paths(self):
-        image_dir_list = os.listdir(self.imageDir)[:200]
+        image_dir_list = os.listdir(self.imageDir)#[:200]
         number_of_images = len(image_dir_list)
         if self.split == "training":
             image_dir_list = image_dir_list[:int(8 / 10 * number_of_images)]

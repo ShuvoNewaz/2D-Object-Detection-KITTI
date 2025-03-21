@@ -10,24 +10,21 @@ model = resnet152(num_classes=9, pretrained=True)
 h, w = 384, 1248
 image_tensor = torch.zeros(3, 384, 1248)
 image = to_pil_image(image_tensor)
-image_tensor = torch.unsqueeze(image_tensor, 0)
-anchors = model(image_tensor)[3].squeeze(0)
+anchors = model(image_tensor.unsqueeze(0))[3].squeeze(0)
 width = anchors[:, 2] - anchors[:, 0]
 height = anchors[:, 3] - anchors[:, 1]
 increment = 1
 gif_images = []
 
-fig, ax = plt.subplots()
-fig.set_size_inches(31.2, 9.6)
-
 def plotAnchors(increment):
     i = 0
     while i < len(anchors):
         selectAnchors = anchors[i:min(i + increment, len(anchors))]
-        bbImage = image_with_bounding_box(image, selectAnchors, None, "white")
-        im = ax.imshow(bbImage)
-        ax.axis("off")
-        gif_images.append([im])
+        bbImage = image_with_bounding_box(image_tensor, selectAnchors,
+                                           torch.tensor([-1] * len(selectAnchors)))
+        gif_images.append(bbImage)
         i += increment
-    ani = animation.ArtistAnimation(fig, gif_images, blit=True)
-    ani.save("anchors.mp4")
+    image.save("results/anchors.gif",
+               save_all=True,
+               append_images=gif_images,
+               duration=20, loop=0)

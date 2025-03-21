@@ -53,7 +53,11 @@ For the 2D object detection task, we only need the object class and the bounding
 The model used for object detection in this work is the RetinaNet first used by [Lin et al.](https://arxiv.org/abs/1708.02002) This work uses a variant of the [Official PyTorch Implementation of RetinaNet](https://github.com/yhenon/pytorch-retinanet/tree/master). However, some functions had to be changed to fit the custom data-loader used in this work. Some of the changes are:
 
 - The layer that outputs the final score, labels and anchor indices of the predicted boxes has been changed from doing 1 operation to all the images in the batch to individual operation per image in the batch. This is done to allow computation of metrics, such as the mean average precision.
-- The pyramid level 7 is removed since the generated anchors are too tall for the images in the KITTI dataset. The [pyramid feature network](./src/models/retinanet/retinanet_layers.py/) is updated accordingly.
+- The pyramid level 7 is removed since the generated anchors are too tall for the images in the KITTI dataset. The [pyramid feature network](./src/models/retinanet/retinanet_layers.py/) is updated accordingly. The generated anchors are shown below. As we can see, even now the tallest anchors are taller than the image height. The largest resolution is kept because it is appropriate for the image width.
+
+<p align="center">
+  <img src="results/anchors.gif"/>
+</p>
 
 ### Data Split
 
@@ -65,7 +69,7 @@ The image dimensions are not consistent across the dataset. Reshaping images wou
 
 ## Results
 
-Detections on the validation set after training on 3 classes (cars, pedestrians and cyclists) are shown below. Depending on the threshold used for [NMS](src/models/retinanet/outputs.py), there may be spurious boxes on a single objects, or missing boxes on objects in close proximity to detected objects.
+Detections on the validation set after training on 3 classes (cars, pedestrians and cyclists) are shown below. Depending on the threshold used for [NMS](src/models/retinanet/outputs.py), there may be spurious boxes on a single object, or missing boxes on objects in close proximity to detected objects.
 
 <p align="center">
   <img src="results/boxes.png"/>
